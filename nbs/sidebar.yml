@@ -21,7 +21,7 @@ website:
         - 02.system.plot.ipynb
       - section: <b style="color:DodgerBlue;">Config</b>
         contents:
-        - 03.config.vehicles.ipynb
+        - 03.config.robots.ipynb
         - 03.config.drivers.ipynb
         - 03.config.db.ipynb
         - 03.config.messenger.ipynb

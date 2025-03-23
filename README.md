@@ -461,12 +461,8 @@ provides all classes for the configuration of the **tspace** framework.
 Most of them serve as meta information for the observation data and used
 in later indexing or grouping for efficient sampling. It includes
 
-- [`Truck`](https://Binjian.github.io/tspace/03.config.vehicles.html#truck)
-  with children
-  [`TruckInCloud`](https://Binjian.github.io/tspace/03.config.vehicles.html#truckincloud)
-  and
-  [`TruckInField`](https://Binjian.github.io/tspace/03.config.vehicles.html#truckinfield)
-  with different interfaces using mixins
+- `Robot` with children `RobotInCloud` and `RobotInField` with different
+  interfaces using mixins
   [`TboxMixin`](https://Binjian.github.io/tspace/03.config.vehicles.html#tboxmixin)
   and
   [`KvaserMixin`](https://Binjian.github.io/tspace/03.config.vehicles.html#kvasermixin).
