@@ -461,13 +461,17 @@ provides all classes for the configuration of the **tspace** framework.
 Most of them serve as meta information for the observation data and used
 in later indexing or grouping for efficient sampling. It includes
 
-- `Robot` with children `RobotInCloud` and `RobotInField` with different
-  interfaces using mixins
-  [`TboxMixin`](https://Binjian.github.io/tspace/03.config.vehicles.html#tboxmixin)
+- [`Robot`](https://Binjian.github.io/tspace/03.config.robots.html#robot)
+  with children
+  [`RobotInCloud`](https://Binjian.github.io/tspace/03.config.robots.html#robotincloud)
   and
-  [`KvaserMixin`](https://Binjian.github.io/tspace/03.config.vehicles.html#kvasermixin).
-  It provides a managed truck list and two dictionaries for quick access
-  to the truck configuration;
+  [`RobotInField`](https://Binjian.github.io/tspace/03.config.robots.html#robotinfield)
+  with different interfaces using mixins
+  [`TboxMixin`](https://Binjian.github.io/tspace/03.config.robots.html#tboxmixin)
+  and
+  [`KvaserMixin`](https://Binjian.github.io/tspace/03.config.robots.html#kvasermixin).
+  It provides a managed robot list and two dictionaries for quick access
+  to the robot configuration;
 - [`Driver`](https://Binjian.github.io/tspace/03.config.drivers.html#driver)
   with properties to be store in the meta information of the observation
   data;
