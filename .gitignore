@@ -174,5 +174,5 @@ cython_debug/
 *.tex
 /nbs/.last_checked
 .idea/
-/tsapce/
-/tspace/agent/aac/
+/tspace/
+/.projectile-cache.eld
