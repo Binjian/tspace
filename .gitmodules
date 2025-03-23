@@ -7,3 +7,6 @@
 [submodule "res/IDQL"]
 	path = res/IDQL
 	url = git@github.com:Binjian/IDQL.git
+[submodule "res/humanoid-gym"]
+	path = res/humanoid-gym
+	url = https://github.com/roboterax/humanoid-gym.git

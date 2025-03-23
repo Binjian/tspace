@@ -70,6 +70,12 @@ website:
           - 06.dataflow.cruncher.ipynb
       - section: <b style="color:DodgerBlue;">Agent</b>
         contents:
+          - 07.agent.ppo.ipynb
+          - section: <b>aac</b>
+            contents:
+              - 07.agent.aac.aac.ipynb
+              - 07.agent.aac.actor_critic.ipynb
+              - 07.agent.aac.rollout_storage.ipynb
           - 07.agent.dpg.ipynb
           - 07.agent.ddpg.ipynb
           - section: <b>rdpg</b>
