@@ -34,7 +34,7 @@ electric engine current, voltage etc. The main features are:
 
 The diagram shows the basic architecture of **tspace**.
 
-# [`Avatar`](https://Binjian.github.io/tspace/00.avatar.html#avatar)
+# `Avatar`
 
 It is the entry point of the `tspace`. It orchestrates the whole ETL and
 ML workflow.
@@ -42,96 +42,71 @@ ML workflow.
 - It configures KvaserCAN, RemoteCAN, Cruncher, Agent, Model, Database,
   Pipeline.
 - It manages the scheduling of two primary threads in the first tier of
-  cascaded threading pools in
-  [`tspace.avatar.main`](https://Binjian.github.io/tspace/00.avatar.html#main).
+  cascaded threading pools in `tspace.avatar.main`.
 - It selects the either **KvaserCAN** or **RemoteCAN** as the vehicle
   interface for reading the observation and applying the action.
 
 # KvaserCAN
 
-It is implemented with
-[`Kvaser`](https://Binjian.github.io/tspace/06.dataflow.kvaser.html#kvaser)
-which provides
+It is implemented with `Kvaser` which provides
 
 - a local interface for reading the observation (CAN messages of vehicle
-  states) via Kvaser using
-  [`udp_context`](https://Binjian.github.io/tspace/04.conn.udp.html#udp_context)
-  to get CAN messages as json data from a local udp server. Then it
-  encodes the raw json data into a
+  states) via Kvaser using `udp_context` to get CAN messages as json
+  data from a local udp server. Then it encodes the raw json data into a
   [pandas.DataFrame](https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html)
-  for forwarding through the data pipeline to
-  [`Cruncher`](https://Binjian.github.io/tspace/06.dataflow.cruncher.html#cruncher).
+  for forwarding through the data pipeline to `Cruncher`.
 
 - It provides a local interface for applying the action (flashing
   parameters) onto the vehicle ECU (VCU). Before sending the action, it
   decodes the action from the
   [pandas.DataFrame](https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html)
   into packed string buffer and then sends it to the ECU by calling
-  [`send_float_array`](https://Binjian.github.io/tspace/04.conn.tbox.html#send_float_array)
-  from
-  [`VehicleInterface.consume`](https://Binjian.github.io/tspace/06.dataflow.vehicle_interface.html#vehicleinterface.consume).
+  `send_float_array` from `VehicleInterface.consume`.
 
 - The control messages for training HMI go through the same UDP port.
   They are used to modify the threading events to control the episodic
-  training process with
-  [`VehicleInterface.hmi_control`](https://Binjian.github.io/tspace/06.dataflow.vehicle_interface.html#vehicleinterface.hmi_control).
+  training process with `VehicleInterface.hmi_control`.
 
 # RemoteCAN
 
 It provides a remote interface to the vehicle via the object storage
 system on the cloud sent by the onboard TBox. It’s implemented with
-[`Cloud`](https://Binjian.github.io/tspace/06.dataflow.cloud.html#cloud):
+`Cloud`:
 
 - It reads the observation (CAN messages of vehicle states) from the
-  cloud object storage system through
-  [`RemoteCanClient.get_signals`](https://Binjian.github.io/tspace/04.conn.remote_can_client.html#remotecanclient.get_signals).
-  It then encodes the raw json data into a
+  cloud object storage system through `RemoteCanClient.get_signals`. It
+  then encodes the raw json data into a
   [pandas.DataFrame](https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html)
-  and forward it to
-  [`Cruncher`](https://Binjian.github.io/tspace/06.dataflow.cruncher.html#cruncher)
-  through the data pipeline.
+  and forward it to `Cruncher` through the data pipeline.
 
 - It sends the action (flashing parameters) to the vehicle ECU (VCU) in
-  the shared
-  [`VehicleInterface.consume`](https://Binjian.github.io/tspace/06.dataflow.vehicle_interface.html#vehicleinterface.consume)
-  by calling
-  [`RemoteCanClient.send_torque_map`](https://Binjian.github.io/tspace/04.conn.remote_can_client.html#remotecanclient.send_torque_map),
-  which decodes the action from the
+  the shared `VehicleInterface.consume` by calling
+  `RemoteCanClient.send_torque_map`, which decodes the action from the
   [pandas.DataFrame](https://pandas.pydata.org/docs/reference/api/pandas.DataFrame.html)
   into raw json string.
 
 - It selects the training HMI to get the vehicle and driver information
-  as configuration with
-  [`Cloud.hmi_capture_from_udp`](https://Binjian.github.io/tspace/06.dataflow.cloud.html#cloud.hmi_capture_from_udp)
-  for local udp server, with
-  [`Cloud.hmi_capture_from_rmq`](https://Binjian.github.io/tspace/06.dataflow.cloud.html#cloud.hmi_capture_from_rmq)
-  for remote RocketMQ server, with
-  [`Cloud.hmi_capture_from_dummy`](https://Binjian.github.io/tspace/06.dataflow.cloud.html#cloud.hmi_capture_from_dummy)
-  for pure inference mode without training or updating models. It shares
-  the same control logic
-  [`VehicleInterface.hmi_control`](https://Binjian.github.io/tspace/06.dataflow.vehicle_interface.html#vehicleinterface.hmi_control)
-  with **KvaserCAN**.
+  as configuration with `Cloud.hmi_capture_from_udp` for local udp
+  server, with `Cloud.hmi_capture_from_rmq` for remote RocketMQ server,
+  with `Cloud.hmi_capture_from_dummy` for pure inference mode without
+  training or updating models. It shares the same control logic
+  `VehicleInterface.hmi_control` with **KvaserCAN**.
 
 # Cruncher
 
 It is main pivot of the data pipeline for pre-processing the observation
 and post-processing the action:
 
-- The
-  [`Cruncher.filter`](https://Binjian.github.io/tspace/06.dataflow.cruncher.html#cruncher.filter)
-  reveives the observation through the data pipeline from **KvaserCAN**
-  or **RemoteCAN**. It pre-processes the input data into the quadruple
-  with a timestamp $(timestamp, state, action, reward, state')$ and give
-  it to the reinforcement **Agent**
-  [`DPG`](https://Binjian.github.io/tspace/07.agent.dpg.html#dpg),
-  subsequently its child
-  [`DDPG`](https://Binjian.github.io/tspace/07.agent.ddpg.html#ddpg) or
-  [`RDPG`](https://Binjian.github.io/tspace/07.agent.rdpg.rdpg.html#rdpg),
-  for inferring an optimal action determined by its current policy.
-  After getting the prediction of the agent, it encodes the prediction
-  result into an action object and forwards it to
-  [`VehicleInterface.consume`](https://Binjian.github.io/tspace/06.dataflow.vehicle_interface.html#vehicleinterface.consume)
-  to be flashed onto VCU.
+- The `Cruncher.filter` reveives the observation through the data
+  pipeline from **KvaserCAN** or **RemoteCAN**. It pre-processes the
+  input data into the quadruple with a timestamp
+  $(timestamp, state, action, reward, state')$ and give it to the
+  reinforcement **Agent**
+  [`DPG`](https://Binjian.github.io/tspace/07.agent.ppo.html#dpg),
+  subsequently its child `DDPG` or `RDPG`, for inferring an optimal
+  action determined by its current policy. After getting the prediction
+  of the agent, it encodes the prediction result into an action object
+  and forwards it to `VehicleInterface.consume` to be flashed onto VCU.
 
 - It collects the critic, actor loss, the total reward for each episode,
   the running reward and the action at the end of the episode. It also
@@ -140,97 +115,78 @@ and post-processing the action:
 # Agent
 
 It provides a wrapper for the reinforcement learning model with
-[`DPG`](https://Binjian.github.io/tspace/07.agent.dpg.html#dpg):
+[`DPG`](https://Binjian.github.io/tspace/07.agent.ppo.html#dpg):
 
 - It has an interface to data storage:
 
   - retrieves the observation meta information and database
-    configuration from
-    [`Avatar`](https://Binjian.github.io/tspace/00.avatar.html#avatar),
+    configuration from `Avatar`,
 
-  - initializes repo interface
-    [`Buffer`](https://Binjian.github.io/tspace/05.storage.buffer.buffer.html#buffer),
-    subsequently
-    [`MongoBuffer`](https://Binjian.github.io/tspace/05.storage.buffer.mongo.html#mongobuffer)
-    or
-    [`DaskBuffer`](https://Binjian.github.io/tspace/05.storage.buffer.dask.html#daskbuffer)
-    which then initializes the database connection with
-    [`MongoPool`](https://Binjian.github.io/tspace/05.storage.pool.mongo.html#mongopool)
-    or
-    [`DaskPool`](https://Binjian.github.io/tspace/05.storage.pool.dask.html#daskpool)
-    respectively.
+  - initializes repo interface `Buffer`, subsequently `MongoBuffer` or
+    `DaskBuffer` which then initializes the database connection with
+    `MongoPool` or `DaskPool` respectively.
 
 - It transfers observation data to the neural network:
 
   - initializes the episode states,
 
   - defines abstract methods
-    [`DPG.actor_predict`](https://Binjian.github.io/tspace/07.agent.dpg.html#dpg.actor_predict),
-    [`DPG.train`](https://Binjian.github.io/tspace/07.agent.dpg.html#dpg.train),
-    [`DPG.get_losses`](https://Binjian.github.io/tspace/07.agent.dpg.html#dpg.get_losses),
-    [`DPG.soft_update_target`](https://Binjian.github.io/tspace/07.agent.dpg.html#dpg.soft_update_target),
-    [`DPG.init_checkpoint`](https://Binjian.github.io/tspace/07.agent.dpg.html#dpg.init_checkpoint),
-    [`DPG.save_ckpt`](https://Binjian.github.io/tspace/07.agent.dpg.html#dpg.save_ckpt),
-    [`DPG.touch_gpu`](https://Binjian.github.io/tspace/07.agent.dpg.html#dpg.touch_gpu)
-    for concrete implementations in child classes
-    [`DDPG`](https://Binjian.github.io/tspace/07.agent.ddpg.html#ddpg)
-    and
-    [`RDPG`](https://Binjian.github.io/tspace/07.agent.rdpg.rdpg.html#rdpg),
+    [`DPG.actor_predict`](https://Binjian.github.io/tspace/07.agent.ppo.html#dpg.actor_predict),
+    [`DPG.train`](https://Binjian.github.io/tspace/07.agent.ppo.html#dpg.train),
+    [`DPG.get_losses`](https://Binjian.github.io/tspace/07.agent.ppo.html#dpg.get_losses),
+    [`DPG.soft_update_target`](https://Binjian.github.io/tspace/07.agent.ppo.html#dpg.soft_update_target),
+    [`DPG.init_checkpoint`](https://Binjian.github.io/tspace/07.agent.ppo.html#dpg.init_checkpoint),
+    [`DPG.save_ckpt`](https://Binjian.github.io/tspace/07.agent.ppo.html#dpg.save_ckpt),
+    [`DPG.touch_gpu`](https://Binjian.github.io/tspace/07.agent.ppo.html#dpg.touch_gpu)
+    for concrete implementations in child classes `DDPG` and `RDPG`,
 
   - provides the concrete methods
-    [`DPG.start_episode`](https://Binjian.github.io/tspace/07.agent.dpg.html#dpg.start_episode),
-    [`DPG.end_episode`](https://Binjian.github.io/tspace/07.agent.dpg.html#dpg.end_episode),
-    [`DPG.deposit`](https://Binjian.github.io/tspace/07.agent.dpg.html#dpg.deposit),
-    [`DPG.deposit_episode`](https://Binjian.github.io/tspace/07.agent.dpg.html#dpg.deposit_episode).
+    [`DPG.start_episode`](https://Binjian.github.io/tspace/07.agent.ppo.html#dpg.start_episode),
+    [`DPG.end_episode`](https://Binjian.github.io/tspace/07.agent.ppo.html#dpg.end_episode),
+    [`DPG.deposit`](https://Binjian.github.io/tspace/07.agent.ppo.html#dpg.deposit),
+    [`DPG.deposit_episode`](https://Binjian.github.io/tspace/07.agent.ppo.html#dpg.deposit_episode).
 
-  - [`DPG.touch_gpu`](https://Binjian.github.io/tspace/07.agent.dpg.html#dpg.touch_gpu)
+  - [`DPG.touch_gpu`](https://Binjian.github.io/tspace/07.agent.ppo.html#dpg.touch_gpu)
     is used to warm up the GPU before starting inference.
 
-## [`DDPG`](https://Binjian.github.io/tspace/07.agent.ddpg.html#ddpg)
+## `DDPG`
 
 - provides methods to create, load or initialize the [Deep Deterministic
   Policy Gradient](https://arxiv.org/abs/1509.02971) **Model**, or
   restore checkpoints to it. It also exports the tflite model.
 - It provides the concrete methods for the abstract ones in the
-  [`DPG`](https://Binjian.github.io/tspace/07.agent.dpg.html#dpg)
+  [`DPG`](https://Binjian.github.io/tspace/07.agent.ppo.html#dpg)
   interface.
-- [`DDPG.infer_single_sample`](https://Binjian.github.io/tspace/07.agent.ddpg.html#ddpg.infer_single_sample)
-  is the inference method with graph optimization via
+- `DDPG.infer_single_sample` is the inference method with graph
+  optimization via
   [tf.function](https://www.tensorflow.org/guide/function).
-- [`DDPG.sample_minibatch`](https://Binjian.github.io/tspace/07.agent.ddpg.html#ddpg.sample_minibatch)
-  provides a minibatch sampled from the buffer. It handles the bootstrap
-  when the buffer is empty thus there is no samples in the
-  [`Buffer`](https://Binjian.github.io/tspace/05.storage.buffer.buffer.html#buffer)
-  when the first episode has not ended.
-- [`DDPG.update_with_batch`](https://Binjian.github.io/tspace/07.agent.ddpg.html#ddpg.update_with_batch)
-  enforces the back propagation and applies the weight update to the
-  actor and critic network during
-  [`DDPG.train`](https://Binjian.github.io/tspace/07.agent.ddpg.html#ddpg.train).
+- `DDPG.sample_minibatch` provides a minibatch sampled from the buffer.
+  It handles the bootstrap when the buffer is empty thus there is no
+  samples in the `Buffer` when the first episode has not ended.
+- `DDPG.update_with_batch` enforces the back propagation and applies the
+  weight update to the actor and critic network during `DDPG.train`.
 
-## [`RDPG`](https://Binjian.github.io/tspace/07.agent.rdpg.rdpg.html#rdpg)
+## `RDPG`
 
 - provides methods to create, load or initialize the [Recurrent
   Deterministic Policy Gradient](https://arxiv.org/abs/1512.04455)
   **Model**, or restore checkpoints to it.
 - It provides the concrete methods for the abstract ones in the
-  [`DPG`](https://Binjian.github.io/tspace/07.agent.dpg.html#dpg)
+  [`DPG`](https://Binjian.github.io/tspace/07.agent.ppo.html#dpg)
   interface.
-- [`RDPG.actor_predict_step`](https://Binjian.github.io/tspace/07.agent.rdpg.rdpg.html#rdpg.actor_predict_step)
-  is the inference method with graph optimization via
+- `RDPG.actor_predict_step` is the inference method with graph
+  optimization via
   [tf.function](https://www.tensorflow.org/guide/function).
-- [`RDPG.train_step`](https://Binjian.github.io/tspace/07.agent.rdpg.rdpg.html#rdpg.train_step)
-  is the training method with graph optimization via
+- `RDPG.train_step` is the training method with graph optimization via
   [tf.function](https://www.tensorflow.org/guide/function). It also
   applies the weight update to the actor and critic network
-- [`RDPG.train`](https://Binjian.github.io/tspace/07.agent.rdpg.rdpg.html#rdpg.train)
-  samples a ragged minibatch of episodes with different lengths from the
-  buffer. It can handle training of time sequences with arbitrary length
-  by truncated back propagation through time (TBPTT) with splitting the
-  episodes and looping over the subsequences with Masking layers to
-  update the weights by
-  [`RDPG.train_step`](https://Binjian.github.io/tspace/07.agent.rdpg.rdpg.html#rdpg.train_step).
+- `RDPG.train` samples a ragged minibatch of episodes with different
+  lengths from the buffer. It can handle training of time sequences with
+  arbitrary length by truncated back propagation through time (TBPTT)
+  with splitting the episodes and looping over the subsequences with
+  Masking layers to update the weights by `RDPG.train_step`.
 
-## [`IDQL`](https://Binjian.github.io/tspace/07.agent.idql.html#idql)
+## `IDQL`
 
 - provides methods to create and initialize the [Implicit Diffusion
   Q-learning](https://arxiv.org/abs/2304.10573) **Model**.
@@ -238,153 +194,97 @@ It provides a wrapper for the reinforcement learning model with
   [jaxrl5](https://github.com/philippe-eecs/IDQL/blob/main/jaxrl5/agents/ddpm_iql/ddpm_iql_learner.py)
   with Jax and Flax interface.
 - It provides the concrete methods for the abstract ones in the
-  [`DPG`](https://Binjian.github.io/tspace/07.agent.dpg.html#dpg)
+  [`DPG`](https://Binjian.github.io/tspace/07.agent.ppo.html#dpg)
   interface.
-- [`IDQL.actor_predict`](https://Binjian.github.io/tspace/07.agent.idql.html#idql.actor_predict)
-  is the inference method.
-- [`IDQL.train`](https://Binjian.github.io/tspace/07.agent.idql.html#idql.train)
-  is the training method. Jaxrl5 takes care of the weight update to the
-  actor and critic and the value network. It samples a minibatch of
-  tuples (state, action, reward, next state) from the buffer.
+- `IDQL.actor_predict` is the inference method.
+- `IDQL.train` is the training method. Jaxrl5 takes care of the weight
+  update to the actor and critic and the value network. It samples a
+  minibatch of tuples (state, action, reward, next state) from the
+  buffer.
 
 # Model
 
 It’s the neural network model for the reinforcement learning agent. For
-now it’s only implemented for
-[`RDPG`](https://Binjian.github.io/tspace/07.agent.rdpg.rdpg.html#rdpg)
-in
-[`SeqActor`](https://Binjian.github.io/tspace/07.agent.rdpg.actor.html#seqactor)
-and
-[`SeqCritic`](https://Binjian.github.io/tspace/07.agent.rdpg.critic.html#seqcritic).
+now it’s only implemented for `RDPG` in `SeqActor` and `SeqCritic`.
 
-## [`SeqActor`](https://Binjian.github.io/tspace/07.agent.rdpg.actor.html#seqactor)
+## `SeqActor`
 
 It is the actor network with two recurrent LSTM layers, two dense layers
 and a Masking layer for handling ragged input sequence.
 
-- [`SeqActor.predict`](https://Binjian.github.io/tspace/07.agent.rdpg.actor.html#seqactor.predict)
-  outputs the action given the state for inference, thus the batch
-  dimension has to be one.
-- [`SeqActor.evaluate_actions`](https://Binjian.github.io/tspace/07.agent.rdpg.actor.html#seqactor.evaluate_actions)
-  outputs the action given a batch of states for training. It’s used in
-  the training loop to get the prediction of the target actor network to
-  calculate the critic loss.
+- `SeqActor.predict` outputs the action given the state for inference,
+  thus the batch dimension has to be one.
+- `SeqActor.evaluate_actions` outputs the action given a batch of states
+  for training. It’s used in the training loop to get the prediction of
+  the target actor network to calculate the critic loss.
 - It handles the ragged input sequences with Masking layer and the
   stateful recurrent layers for TBPTT
-- For inference,
-  [`SeqCritic`](https://Binjian.github.io/tspace/07.agent.rdpg.critic.html#seqcritic)
-  is not used and only
-  [`SeqActor`](https://Binjian.github.io/tspace/07.agent.rdpg.actor.html#seqactor)
-  is required.
+- For inference, `SeqCritic` is not used and only `SeqActor` is
+  required.
 
-## [`SeqCritic`](https://Binjian.github.io/tspace/07.agent.rdpg.critic.html#seqcritic)
+## `SeqCritic`
 
 It is the critic network with two recurrent LSTM layers and two dense
 layer and a Masking layer for handling ragged input sequence.
 
-- [`SeqCritic.evaluate_q`](https://Binjian.github.io/tspace/07.agent.rdpg.critic.html#seqcritic.evaluate_q)
-  gives the Q-value given a batch of the state and action. It’s used in
-  the training loop
-  [`RDPG.train_step`](https://Binjian.github.io/tspace/07.agent.rdpg.rdpg.html#rdpg.train_step)
-  to calculate the critic and actor loss.
+- `SeqCritic.evaluate_q` gives the Q-value given a batch of the state
+  and action. It’s used in the training loop `RDPG.train_step` to
+  calculate the critic and actor loss.
 
 # Storage
 
 represents the data storage in the repository pattern with two
-polymorphic abstraction layers
-[`Buffer`](https://Binjian.github.io/tspace/05.storage.buffer.buffer.html#buffer)
-and
-[`Pool`](https://Binjian.github.io/tspace/05.storage.pool.pool.html#pool).
+polymorphic abstraction layers `Buffer` and `Pool`.
 
-## [`Buffer`](https://Binjian.github.io/tspace/05.storage.buffer.buffer.html#buffer)
+## `Buffer`
 
 is an abstract class. It provides a view of data storage to the agent:
 
-- **Agent** uses the abstract methods
-  [`Buffer.load`](https://Binjian.github.io/tspace/05.storage.buffer.buffer.html#buffer.load),
-  `Buffer.save` and
-  [`Buffer.close`](https://Binjian.github.io/tspace/05.storage.buffer.buffer.html#buffer.close)
-  loads or saves data from or to the
-  [`Pool`](https://Binjian.github.io/tspace/05.storage.pool.pool.html#pool),
-  and closes the connection to the
-  [`Pool`](https://Binjian.github.io/tspace/05.storage.pool.pool.html#pool).
-- The abstract
-  [`Buffer.sample`](https://Binjian.github.io/tspace/05.storage.buffer.buffer.html#buffer.sample)
-  samples a minibatch from the
-  [`Pool`](https://Binjian.github.io/tspace/05.storage.pool.pool.html#pool).
-  It needs the child of
-  [`Buffer`](https://Binjian.github.io/tspace/05.storage.buffer.buffer.html#buffer)
-  to implement the concrete efficient sampling method, which depends on
-  the underlying data storage system.
-- The concrete methode
-  [`Buffer.store`](https://Binjian.github.io/tspace/05.storage.buffer.buffer.html#buffer.store)
-  store the whole episode data into the
-  [`Pool`](https://Binjian.github.io/tspace/05.storage.pool.pool.html#pool)
-- The concrete methode
-  [`Buffer.find`](https://Binjian.github.io/tspace/05.storage.buffer.buffer.html#buffer.find)
-  simply calls
-  [`Pool.find`](https://Binjian.github.io/tspace/05.storage.pool.pool.html#pool.find)
-  to find the data with the given query.
+- **Agent** uses the abstract methods `Buffer.load`, `Buffer.save` and
+  `Buffer.close` loads or saves data from or to the `Pool`, and closes
+  the connection to the `Pool`.
+- The abstract `Buffer.sample` samples a minibatch from the `Pool`. It
+  needs the child of `Buffer` to implement the concrete efficient
+  sampling method, which depends on the underlying data storage system.
+- The concrete methode `Buffer.store` store the whole episode data into
+  the `Pool`
+- The concrete methode `Buffer.find` simply calls `Pool.find` to find
+  the data with the given query.
 
-### [`MongoBuffer`](https://Binjian.github.io/tspace/05.storage.buffer.mongo.html#mongobuffer)
+### `MongoBuffer`
 
 It’s a concrete class for the underlying NoSQL database MongoDB.
 
-- It implements the abstract methods required by the
-  [`Buffer`](https://Binjian.github.io/tspace/05.storage.buffer.buffer.html#buffer)
-  interface.
-- [`MongoBuffer.decode_batch_records`](https://Binjian.github.io/tspace/05.storage.buffer.mongo.html#mongobuffer.decode_batch_records)
-  prepare the sample batch data from
-  [`MongoPool`](https://Binjian.github.io/tspace/05.storage.pool.mongo.html#mongopool)
-  into a compliant format for agent training.
+- It implements the abstract methods required by the `Buffer` interface.
+- `MongoBuffer.decode_batch_records` prepare the sample batch data from
+  `MongoPool` into a compliant format for agent training.
 - It can handle both DDPG record data type and RDPG episode data type.
 
-### [`DaskBuffer`](https://Binjian.github.io/tspace/05.storage.buffer.dask.html#daskbuffer)
+### `DaskBuffer`
 
 It’s a concrete class for the distributed data storage system Dask.
 
-- It implements the abstract methods required by the
-  [`Buffer`](https://Binjian.github.io/tspace/05.storage.buffer.buffer.html#buffer)
-  interface.
-- [`DaskBuffer.decode_batch_records`](https://Binjian.github.io/tspace/05.storage.buffer.dask.html#daskbuffer.decode_batch_records)
-  prepare the sample batch data from
-  [`DaskPool`](https://Binjian.github.io/tspace/05.storage.pool.dask.html#daskpool)
-  into a compliant format for agent training.
+- It implements the abstract methods required by the `Buffer` interface.
+- `DaskBuffer.decode_batch_records` prepare the sample batch data from
+  `DaskPool` into a compliant format for agent training.
 - It can handle both DDPG record data type and RDPG episode data type.
 
-## [`Pool`](https://Binjian.github.io/tspace/05.storage.pool.pool.html#pool)
+## `Pool`
 
 is an abstract class. It’s the interface for the underlying data
-storage. For the moment, it’s implemented with
-[`MongoPool`](https://Binjian.github.io/tspace/05.storage.pool.mongo.html#mongopool)
-and
-[`DaskPool`](https://Binjian.github.io/tspace/05.storage.pool.dask.html#daskpool).
+storage. For the moment, it’s implemented with `MongoPool` and
+`DaskPool`.
 
-- It defines the abstract methods
-  [`Pool.load`](https://Binjian.github.io/tspace/05.storage.pool.pool.html#pool.load),
-  [`Pool.close`](https://Binjian.github.io/tspace/05.storage.pool.pool.html#pool.close),
-  [`Pool.store`](https://Binjian.github.io/tspace/05.storage.pool.pool.html#pool.store),
-  [`Pool.delete`](https://Binjian.github.io/tspace/05.storage.pool.pool.html#pool.delete),
-  [`Pool.find`](https://Binjian.github.io/tspace/05.storage.pool.pool.html#pool.find),
-  [`Pool.sample`](https://Binjian.github.io/tspace/05.storage.pool.pool.html#pool.sample)
-  and
-  [`Pool._count`](https://Binjian.github.io/tspace/05.storage.pool.pool.html#pool._count)
-  for the concrete classes to implement.
-- It defines
-  [`PoolQuery`](https://Binjian.github.io/tspace/01.data.core.html#poolquery)
-  as the query object for
-  [`Pool.sample`](https://Binjian.github.io/tspace/05.storage.pool.pool.html#pool.sample),
-  [`Pool.find`](https://Binjian.github.io/tspace/05.storage.pool.pool.html#pool.find)
-  and
-  [`Pool._count`](https://Binjian.github.io/tspace/05.storage.pool.pool.html#pool._count)
-  method.
-- It implements the iterable protocol with
-  [`Pool.__iter__`](https://Binjian.github.io/tspace/05.storage.pool.pool.html#pool.__iter__)
-  and
-  [`Pool.__getitem__`](https://Binjian.github.io/tspace/05.storage.pool.pool.html#pool.__getitem__)
-  for the concrete classes to implement an efficient indexing method.
+- It defines the abstract methods `Pool.load`, `Pool.close`,
+  `Pool.store`, `Pool.delete`, `Pool.find`, `Pool.sample` and
+  `Pool._count` for the concrete classes to implement.
+- It defines `PoolQuery` as the query object for `Pool.sample`,
+  `Pool.find` and `Pool._count` method.
+- It implements the iterable protocol with `Pool.__iter__` and
+  `Pool.__getitem__` for the concrete classes to implement an efficient
+  indexing method.
 
-### [`MongoPool`](https://Binjian.github.io/tspace/05.storage.pool.mongo.html#mongopool)
+### `MongoPool`
 
 It’s a concrete class for the underlying NoSQL database MongoDB with
 time series support. It handles both record data type and episode data
@@ -392,19 +292,13 @@ type with MongoDB collection features.
 
 - It provides the interface to the MongoDB database with the
   [pymongo](https://pymongo.readthedocs.io/en/stable) library.
-- It implements the abstract methods required by the
-  [`Pool`](https://Binjian.github.io/tspace/05.storage.pool.pool.html#pool)
-  interface.
-- [`MongoPool.store_record`](https://Binjian.github.io/tspace/05.storage.pool.mongo.html#mongopool.store_record)
-  stores the record data into the MongoDB database for
-  [`DDPG`](https://Binjian.github.io/tspace/07.agent.ddpg.html#ddpg)
-  agent.
-- [`MongoPool.store_episode`](https://Binjian.github.io/tspace/05.storage.pool.mongo.html#mongopool.store_episode)
-  stores the episode data into the MongoDB database for
-  [`RDPG`](https://Binjian.github.io/tspace/07.agent.rdpg.rdpg.html#rdpg)
-  agent.
+- It implements the abstract methods required by the `Pool` interface.
+- `MongoPool.store_record` stores the record data into the MongoDB
+  database for `DDPG` agent.
+- `MongoPool.store_episode` stores the episode data into the MongoDB
+  database for `RDPG` agent.
 
-### [`DaskPool`](https://Binjian.github.io/tspace/05.storage.pool.dask.html#daskpool)
+### `DaskPool`
 
 It’s an abstract class for the distributed data storage system Dask,
 since we have to use different backends: Parquet for record data type
@@ -413,47 +307,33 @@ and avro for episode data type.
 - It supports both local file storage and remote object storage with the
   [dask](https://dask.org) library.
 - It defines the generic data type for the abstract method required by
-  the
-  [`Pool`](https://Binjian.github.io/tspace/05.storage.pool.pool.html#pool)
-  interface. The generic data type can then be specialized by the
-  concrete classes either as dask.DataFrame for record data type or
+  the `Pool` interface. The generic data type can then be specialized by
+  the concrete classes either as dask.DataFrame for record data type or
   dask.Bag for episode data type.
 
-#### [`ParquetPool`](https://Binjian.github.io/tspace/05.storage.pool.parquet.html#parquetpool)
+#### `ParquetPool`
 
 is a concrete class for the record data type with the Parquet file
 format as backend storage.
 
-- It implements the abstract methods required by the
-  [`DaskPool`](https://Binjian.github.io/tspace/05.storage.pool.dask.html#daskpool)
-  interface and
-  [`Pool`](https://Binjian.github.io/tspace/05.storage.pool.pool.html#pool)
-  subsequently.
-- [`ParquetPool.sample`](https://Binjian.github.io/tspace/05.storage.pool.parquet.html#parquetpool.sample)
-  provides an efficient unified sampling interface via Dask.DataFrame to
-  a Parquet storage either locally or remotely.
-- [`ParquetPool.get_query`](https://Binjian.github.io/tspace/05.storage.pool.parquet.html#parquetpool.get_query)
-  provides the query object through Dask indexing for the
-  [`ParquetPool.sample`](https://Binjian.github.io/tspace/05.storage.pool.parquet.html#parquetpool.sample)
-  method.
+- It implements the abstract methods required by the `DaskPool`
+  interface and `Pool` subsequently.
+- `ParquetPool.sample` provides an efficient unified sampling interface
+  via Dask.DataFrame to a Parquet storage either locally or remotely.
+- `ParquetPool.get_query` provides the query object through Dask
+  indexing for the `ParquetPool.sample` method.
 
-#### [`AvroPool`](https://Binjian.github.io/tspace/05.storage.pool.avro.avro.html#avropool)
+#### `AvroPool`
 
 is a concrete class for the episode data type with the avro file format
 as backend storage.
 
-- It implements the abstract methods required by the
-  [`DaskPool`](https://Binjian.github.io/tspace/05.storage.pool.dask.html#daskpool)
-  interface and
-  [`Pool`](https://Binjian.github.io/tspace/05.storage.pool.pool.html#pool)
-  subsequently.
-- [`AvroPool.sample`](https://Binjian.github.io/tspace/05.storage.pool.avro.avro.html#avropool.sample)
-  provides an efficient unified sampling interface via Dask.Bag to a
-  avro storage either locally or remotely.
-- [`AvroPool.get_query`](https://Binjian.github.io/tspace/05.storage.pool.avro.avro.html#avropool.get_query)
-  provides the query object through Dask indexing for the
-  [`AvroPool.sample`](https://Binjian.github.io/tspace/05.storage.pool.avro.avro.html#avropool.sample)
-  method.
+- It implements the abstract methods required by the `DaskPool`
+  interface and `Pool` subsequently.
+- `AvroPool.sample` provides an efficient unified sampling interface via
+  Dask.Bag to a avro storage either locally or remotely.
+- `AvroPool.get_query` provides the query object through Dask indexing
+  for the `AvroPool.sample` method.
 
 # Configuration
 
@@ -461,20 +341,12 @@ provides all classes for the configuration of the **tspace** framework.
 Most of them serve as meta information for the observation data and used
 in later indexing or grouping for efficient sampling. It includes
 
-- [`Robot`](https://Binjian.github.io/tspace/03.config.robots.html#robot)
-  with children
-  [`RobotInCloud`](https://Binjian.github.io/tspace/03.config.robots.html#robotincloud)
-  and
-  [`RobotInField`](https://Binjian.github.io/tspace/03.config.robots.html#robotinfield)
-  with different interfaces using mixins
-  [`TboxMixin`](https://Binjian.github.io/tspace/03.config.robots.html#tboxmixin)
-  and
-  [`KvaserMixin`](https://Binjian.github.io/tspace/03.config.robots.html#kvasermixin).
-  It provides a managed robot list and two dictionaries for quick access
-  to the robot configuration;
-- [`Driver`](https://Binjian.github.io/tspace/03.config.drivers.html#driver)
-  with properties to be store in the meta information of the observation
-  data;
+- `Robot` with children `RobotInCloud` and `RobotInField` with different
+  interfaces using mixins `TboxMixin` and `KvaserMixin`. It provides a
+  managed robot list and two dictionaries for quick access to the robot
+  configuration;
+- `Driver` with properties to be store in the meta information of the
+  observation data;
 - `TripMessenger` for different the HMI input source;
 - `CANMessenger` for different CAN message source;
 - `DBConfig` for management of the database configuration;
@@ -486,69 +358,49 @@ levels of cascaded threading pools.
 
 ## Primary threading pool
 
-is managed by
-[`Avatar`](https://Binjian.github.io/tspace/00.avatar.html#avatar) with
-two primary threads in
-[`tspace.avatar.main`](https://Binjian.github.io/tspace/00.avatar.html#main):
+is managed by `Avatar` with two primary threads in `tspace.avatar.main`:
 
 - The first primary thread is for data caputring
 - The second primary thread is for training and inference
 
 ## Data capturing thread
 
-calls
-[`VehicleInterface.ignite`](https://Binjian.github.io/tspace/06.dataflow.vehicle_interface.html#vehicleinterface.ignite),
-which is shared by
-[`Kvaser`](https://Binjian.github.io/tspace/06.dataflow.kvaser.html#kvaser)
-and
-[`Cloud`](https://Binjian.github.io/tspace/06.dataflow.cloud.html#cloud).
-It just starts a secondary threading pool containing six threads
+calls `VehicleInterface.ignite`, which is shared by `Kvaser` and
+`Cloud`. It just starts a secondary threading pool containing six
+threads
 
-- [`VehicleInterface.produce`](https://Binjian.github.io/tspace/06.dataflow.vehicle_interface.html#vehicleinterface.produce)
-  get the raw data either from the local UDP server as in
-  [`Kvaser`](https://Binjian.github.io/tspace/06.dataflow.kvaser.html#kvaser)
-  or the remote cloud object storage as in
-  [`Cloud`](https://Binjian.github.io/tspace/06.dataflow.cloud.html#cloud)
-  and forward it to the raw data pipeline. In case of
-  [`Kvaser`](https://Binjian.github.io/tspace/06.dataflow.kvaser.html#kvaser),
-  it also gets the training HMI control messages from the same UDP
-  server and put them in the HMI data pipeline.
-- [`VehicleInterface.hmi_control`](https://Binjian.github.io/tspace/06.dataflow.vehicle_interface.html#vehicleinterface.hmi_control)
-  manages the episodic state machine to control the training and
-  inference process.
-- [`VehicleInterface.countdown`](https://Binjian.github.io/tspace/06.dataflow.vehicle_interface.html#vehicleinterface.countdown)
-  handles the episode end with a countdown timer to synchronize the data
-  caputring is aligned with the episode end event.
-- [`VehicleInterface.filter`](https://Binjian.github.io/tspace/06.dataflow.vehicle_interface.html#vehicleinterface.filter)
-  transforms the raw input json object into pandas.DataFrame and forward
-  it to the input data pipeline of
-  [`Cruncher.filter`](https://Binjian.github.io/tspace/06.dataflow.cruncher.html#cruncher.filter)
-  thread.
-- [`VehicleInterface.consume`](https://Binjian.github.io/tspace/06.dataflow.vehicle_interface.html#vehicleinterface.consume)
-  is responsible for fetching the action object from the output data
-  pipeline of
-  [`Cruncher.filter`](https://Binjian.github.io/tspace/06.dataflow.cruncher.html#cruncher.filter)
-  thread and having it flashed on the vehicle ECU (VCU).
-- [`VehicleInterface.watch_dog`](https://Binjian.github.io/tspace/06.dataflow.vehicle_interface.html#vehicleinterface.watch_dog)
-  provides a watchdog to monitor the health of the data capturing
-  process and the training process. It triggers the system stop if the
-  observation or action quality is below a threshold.
+- `VehicleInterface.produce` get the raw data either from the local UDP
+  server as in `Kvaser` or the remote cloud object storage as in `Cloud`
+  and forward it to the raw data pipeline. In case of `Kvaser`, it also
+  gets the training HMI control messages from the same UDP server and
+  put them in the HMI data pipeline.
+- `VehicleInterface.hmi_control` manages the episodic state machine to
+  control the training and inference process.
+- `VehicleInterface.countdown` handles the episode end with a countdown
+  timer to synchronize the data caputring is aligned with the episode
+  end event.
+- `VehicleInterface.filter` transforms the raw input json object into
+  pandas.DataFrame and forward it to the input data pipeline of
+  `Cruncher.filter` thread.
+- `VehicleInterface.consume` is responsible for fetching the action
+  object from the output data pipeline of `Cruncher.filter` thread and
+  having it flashed on the vehicle ECU (VCU).
+- `VehicleInterface.watch_dog` provides a watchdog to monitor the health
+  of the data capturing process and the training process. It triggers
+  the system stop if the observation or action quality is below a
+  threshold.
 
 ## Model training and inference thread
 
-call
-[`Cruncher.filter`](https://Binjian.github.io/tspace/06.dataflow.cruncher.html#cruncher.filter).
-**Importantly, all processing in this thread is done synchronously in
-order to preserve the order of the time sequence, thus the causality of
-the oberservation and action.**
+call `Cruncher.filter`. **Importantly, all processing in this thread is
+done synchronously in order to preserve the order of the time sequence,
+thus the causality of the oberservation and action.**
 
 - It gets the data through the input pipeline and delegates the data to
   the agent for training or inference.
 - After getting the prediction from the agent, it encodes the prediction
   result into an action object and forwards it through the output
-  pipeline to
-  [`VehicleInterface.consume`](https://Binjian.github.io/tspace/06.dataflow.vehicle_interface.html#vehicleinterface.consume)
-  to have it flashed on VCU.
+  pipeline to `VehicleInterface.consume` to have it flashed on VCU.
 - It also controls the training loop, the inference loop and manage the
   training log and model checkpoint.
 - This thread is synchronized with the threads in the secondary
